@@ -1,0 +1,282 @@
+{
+  "categories": [
+    {
+      "id": "browser",
+      "name": "Browsers",
+      "description": "Web browsers for browsing the internet",
+      "apps": [
+        {
+          "id": "firefox",
+          "name": "Firefox",
+          "description": "Open source web browser",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "browser/firefox.sh"
+        },
+        {
+          "id": "chrome",
+          "name": "Google Chrome",
+          "description": "Fast and secure web browser",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "browser/chrome.sh"
+        },
+        {
+          "id": "chromium",
+          "name": "Chromium",
+          "description": "Open source version of Chrome",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "browser/chromium.sh"
+        }
+      ]
+    },
+    {
+      "id": "ide",
+      "name": "IDEs & Editors",
+      "description": "Integrated development environments and code editors",
+      "apps": [
+        {
+          "id": "vscode",
+          "name": "Visual Studio Code",
+          "description": "Popular code editor with extensions",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "ide/vscode.sh"
+        },
+        {
+          "id": "vim",
+          "name": "Vim",
+          "description": "Powerful text editor",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "ide/vim.sh"
+        },
+        {
+          "id": "neovim",
+          "name": "Neovim",
+          "description": "Modern Vim fork",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "ide/neovim.sh"
+        },
+        {
+          "id": "sublime",
+          "name": "Sublime Text",
+          "description": "Sophisticated text editor",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "ide/sublime.sh"
+        }
+      ]
+    },
+    {
+      "id": "cli-tools",
+      "name": "CLI Tools",
+      "description": "Command line utilities and tools",
+      "apps": [
+        {
+          "id": "git",
+          "name": "Git",
+          "description": "Version control system",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "cli-tools/git.sh"
+        },
+        {
+          "id": "curl",
+          "name": "cURL",
+          "description": "Command line tool for transferring data",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "cli-tools/curl.sh"
+        },
+        {
+          "id": "wget",
+          "name": "Wget",
+          "description": "Command line downloader",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "cli-tools/wget.sh"
+        },
+        {
+          "id": "htop",
+          "name": "htop",
+          "description": "Interactive process viewer",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "cli-tools/htop.sh"
+        }
+      ]
+    },
+    {
+      "id": "dev-tools",
+      "name": "Development Tools",
+      "description": "Development utilities and frameworks",
+      "apps": [
+        {
+          "id": "nodejs",
+          "name": "Node.js",
+          "description": "JavaScript runtime",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "dev-tools/nodejs.sh"
+        },
+        {
+          "id": "python",
+          "name": "Python",
+          "description": "Python programming language",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "dev-tools/python.sh"
+        },
+        {
+          "id": "docker",
+          "name": "Docker",
+          "description": "Containerization platform",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "dev-tools/docker.sh"
+        },
+        {
+          "id": "docker-compose",
+          "name": "Docker Compose",
+          "description": "Multi-container Docker applications",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "dev-tools/docker-compose.sh"
+        }
+      ]
+    },
+    {
+      "id": "terminals",
+      "name": "Terminals",
+      "description": "Terminal emulators and shells",
+      "apps": [
+        {
+          "id": "alacritty",
+          "name": "Alacritty",
+          "description": "GPU-accelerated terminal emulator",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "terminals/alacritty.sh"
+        },
+        {
+          "id": "kitty",
+          "name": "Kitty",
+          "description": "GPU-accelerated terminal emulator",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "terminals/kitty.sh"
+        },
+        {
+          "id": "zsh",
+          "name": "Zsh",
+          "description": "Powerful shell with many features",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "terminals/zsh.sh"
+        },
+        {
+          "id": "fish",
+          "name": "Fish",
+          "description": "User-friendly command line shell",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "terminals/fish.sh"
+        }
+      ]
+    },
+    {
+      "id": "multimedia",
+      "name": "Multimedia",
+      "description": "Media players and graphics tools",
+      "apps": [
+        {
+          "id": "vlc",
+          "name": "VLC Media Player",
+          "description": "Versatile media player",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "multimedia/vlc.sh"
+        },
+        {
+          "id": "gimp",
+          "name": "GIMP",
+          "description": "GNU Image Manipulation Program",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "multimedia/gimp.sh"
+        },
+        {
+          "id": "obs",
+          "name": "OBS Studio",
+          "description": "Open source streaming and recording software",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "multimedia/obs.sh"
+        }
+      ]
+    },
+    {
+      "id": "productivity",
+      "name": "Productivity",
+      "description": "Office and productivity applications",
+      "apps": [
+        {
+          "id": "libreoffice",
+          "name": "LibreOffice",
+          "description": "Free office suite",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "productivity/libreoffice.sh"
+        },
+        {
+          "id": "notion",
+          "name": "Notion",
+          "description": "All-in-one workspace",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "productivity/notion.sh"
+        },
+        {
+          "id": "discord",
+          "name": "Discord",
+          "description": "Voice, video and text communication",
+          "compatibility": ["ubuntu", "debian", "fedora", "arch", "opensuse"],
+          "scriptPath": "productivity/discord.sh"
+        }
+      ]
+    }
+  ],
+  "distros": [
+    {
+      "id": "ubuntu",
+      "name": "Ubuntu",
+      "description": "Popular Linux distribution based on Debian"
+    },
+    {
+      "id": "debian",
+      "name": "Debian",
+      "description": "Stable and reliable Linux distribution"
+    },
+    {
+      "id": "fedora",
+      "name": "Fedora",
+      "description": "Cutting-edge Linux distribution"
+    },
+    {
+      "id": "arch",
+      "name": "Arch Linux",
+      "description": "Lightweight and flexible Linux distribution"
+    },
+    {
+      "id": "opensuse",
+      "name": "openSUSE",
+      "description": "Stable and user-friendly Linux distribution"
+    }
+  ],
+  "desktopEnvironments": [
+    {
+      "id": "gnome",
+      "name": "GNOME",
+      "description": "Modern and intuitive desktop environment"
+    },
+    {
+      "id": "kde",
+      "name": "KDE Plasma",
+      "description": "Feature-rich and customizable desktop environment"
+    },
+    {
+      "id": "xfce",
+      "name": "XFCE",
+      "description": "Lightweight and fast desktop environment"
+    },
+    {
+      "id": "cinnamon",
+      "name": "Cinnamon",
+      "description": "Traditional desktop environment"
+    },
+    {
+      "id": "mate",
+      "name": "MATE",
+      "description": "Continuation of GNOME 2"
+    }
+  ]
+}
