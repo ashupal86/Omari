@@ -67,6 +67,13 @@ jobs:
           CHANGED_SCRIPTS=$(echo "$CHANGED_FILES" | grep -E '\.(sh|ps1)$' | tr '\n' ' ')
           CHANGED_JSON=$(echo "$CHANGED_FILES" | grep 'index\.json$' || echo "")
           
+          # If no scripts changed, test all scripts to ensure they work
+          if [ -z "$CHANGED_SCRIPTS" ]; then
+            echo "No scripts changed, testing all scripts..."
+            CHANGED_SCRIPTS=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')
+            CHANGED_JSON="scripts/index.json"
+          fi
+          
           echo "scripts=$CHANGED_SCRIPTS" >> $GITHUB_OUTPUT
           echo "json=$CHANGED_JSON" >> $GITHUB_OUTPUT
         fi
@@ -150,7 +157,7 @@ jobs:
   test-ubuntu-scripts:
     runs-on: ubuntu-latest
     needs: [detect-changes, validate-syntax]
-    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped')
     strategy:
       matrix:
         include:
@@ -240,7 +247,7 @@ jobs:
   test-fedora-scripts:
     runs-on: ubuntu-latest
     needs: [detect-changes, validate-syntax]
-    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped')
     steps:
     - uses: actions/checkout@v4
     
@@ -292,7 +299,7 @@ jobs:
   test-arch-scripts:
     runs-on: ubuntu-latest
     needs: [detect-changes, validate-syntax]
-    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped')
     steps:
     - uses: actions/checkout@v4
     
@@ -344,7 +351,7 @@ jobs:
   test-windows-scripts:
     runs-on: windows-latest
     needs: [detect-changes, validate-syntax]
-    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped')
     steps:
     - uses: actions/checkout@v4
     
