@@ -1,0 +1,69 @@
+{
+  "ubuntu": {
+    "browsers": {
+      "firefox": "scripts/ubuntu/browsers/firefox.sh",
+      "chrome": "scripts/ubuntu/browsers/chrome.sh",
+      "brave": "scripts/ubuntu/browsers/brave.sh",
+      "opera": "scripts/ubuntu/browsers/opera.sh"
+    },
+    "media": {
+      "vlc": "scripts/ubuntu/media/vlc.sh",
+      "spotify": "scripts/ubuntu/media/spotify.sh"
+    },
+    "devtools": {
+      "git": "scripts/ubuntu/devtools/git.sh",
+      "docker": "scripts/ubuntu/devtools/docker.sh",
+      "nodejs": "scripts/ubuntu/devtools/nodejs.sh",
+      "curl": "scripts/ubuntu/devtools/curl.sh",
+      "wget": "scripts/ubuntu/devtools/wget.sh"
+    },
+    "ides": {
+      "vscode": "scripts/ubuntu/ides/vscode.sh",
+      "neovim": "scripts/ubuntu/ides/neovim.sh"
+    },
+    "languages": {
+      "python": "scripts/ubuntu/languages/python.sh",
+      "go": "scripts/ubuntu/languages/go.sh",
+      "rust": "scripts/ubuntu/languages/rust.sh"
+    },
+    "system": {
+      "htop": "scripts/ubuntu/system/htop.sh",
+      "tmux": "scripts/ubuntu/system/tmux.sh",
+      "zsh": "scripts/ubuntu/system/zsh.sh"
+    },
+    "comms": {
+      "discord": "scripts/ubuntu/comms/discord.sh"
+    },
+    "games": {
+      "steam": "scripts/ubuntu/games/steam.sh"
+    }
+  },
+  "fedora": {
+    "browsers": {
+      "firefox": "scripts/fedora/browsers/firefox.sh"
+    },
+    "devtools": {
+      "git": "scripts/fedora/devtools/git.sh"
+    }
+  },
+  "arch": {
+    "browsers": {
+      "firefox": "scripts/arch/browsers/firefox.sh"
+    },
+    "devtools": {
+      "git": "scripts/arch/devtools/git.sh"
+    }
+  },
+  "windows": {
+    "browsers": {
+      "firefox": "scripts/windows/browsers/firefox.ps1",
+      "chrome": "scripts/windows/browsers/chrome.ps1"
+    },
+    "devtools": {
+      "git": "scripts/windows/devtools/git.ps1"
+    },
+    "ides": {
+      "vscode": "scripts/windows/ides/vscode.ps1"
+    }
+  }
+}

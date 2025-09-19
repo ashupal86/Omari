@@ -1,0 +1,90 @@
+name: Script Validation CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-linux-scripts:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install shellcheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+    
+    - name: Validate Ubuntu scripts
+      run: |
+        find scripts/ubuntu -name "*.sh" -type f | while read -r script; do
+          echo "Checking $script..."
+          shellcheck "$script" || exit 1
+        done
+    
+    - name: Validate Fedora scripts
+      run: |
+        find scripts/fedora -name "*.sh" -type f | while read -r script; do
+          echo "Checking $script..."
+          shellcheck "$script" || exit 1
+        done
+    
+    - name: Validate Arch scripts
+      run: |
+        find scripts/arch -name "*.sh" -type f | while read -r script; do
+          echo "Checking $script..."
+          shellcheck "$script" || exit 1
+        done
+
+  validate-windows-scripts:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate Windows PowerShell scripts
+      run: |
+        Get-ChildItem -Path "scripts\windows" -Recurse -Filter "*.ps1" | ForEach-Object {
+          Write-Host "Checking $($_.FullName)..."
+          $result = pwsh -Command "Get-Content '$($_.FullName)' | Out-String | Invoke-Expression" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "PowerShell syntax error in $($_.FullName): $result"
+            exit 1
+          }
+        }
+
+  validate-json:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate index.json
+      run: |
+        python3 -c "import json; json.load(open('scripts/index.json'))"
+        echo "✓ index.json is valid JSON"
+    
+    - name: Check script file existence
+      run: |
+        python3 -c "
+        import json
+        import os
+        
+        with open('scripts/index.json') as f:
+            index = json.load(f)
+        
+        missing_files = []
+        for distro, categories in index.items():
+            for category, apps in categories.items():
+                for app, script_path in apps.items():
+                    if not os.path.exists(script_path):
+                        missing_files.append(script_path)
+        
+        if missing_files:
+            print('Missing script files:')
+            for file in missing_files:
+                print(f'  - {file}')
+            exit(1)
+        else:
+            print('✓ All script files exist')
+        "
