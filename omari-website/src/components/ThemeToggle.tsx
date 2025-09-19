@@ -9,7 +9,6 @@ export function ThemeToggle() {
     try {
       const newTheme = theme === 'light' ? 'dark' : 'light'
       console.log('Toggling theme from', theme, 'to', newTheme)
-      alert(`Switching from ${theme} to ${newTheme}`) // Temporary test
       setTheme(newTheme)
     } catch (error) {
       console.error('Error toggling theme:', error)

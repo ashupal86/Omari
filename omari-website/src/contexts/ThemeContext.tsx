@@ -74,6 +74,7 @@ export function ThemeProvider({
 
     console.log('Applying theme:', theme)
     root.classList.add(theme)
+    console.log('Document classes after applying theme:', root.className)
   }, [theme])
 
   const value = {
