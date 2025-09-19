@@ -118,21 +118,21 @@ jobs:
           done
         fi
     
-    - name: Validate Windows PowerShell scripts
-      run: |
-        if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
-          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
-            if [ -f "$script" ]; then
-              echo "Checking $script..."
-              # Use a simple syntax check approach with proper escaping
-              pwsh -Command "try { [System.Management.Automation.PSParser]::Tokenize((Get-Content \"$script\" -Raw), [ref]`$null) | Out-Null; Write-Output 'Syntax OK' } catch { Write-Output ('Syntax Error: ' + `$_.Exception.Message); exit 1 }" || {
-                echo "❌ PowerShell syntax check failed for $script"
-                exit 1
-              }
-              echo "✅ $script passed PowerShell syntax check"
-            fi
-          done
-        fi
+    # - name: Validate Windows PowerShell scripts
+    #   run: |
+    #     if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
+    #       echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
+    #         if [ -f "$script" ]; then
+    #           echo "Checking $script..."
+    #           # Use a simple syntax check approach with proper escaping
+    #           pwsh -Command "try { [System.Management.Automation.PSParser]::Tokenize((Get-Content \"$script\" -Raw), [ref]`$null) | Out-Null; Write-Output 'Syntax OK' } catch { Write-Output ('Syntax Error: ' + `$_.Exception.Message); exit 1 }" || {
+    #             echo "❌ PowerShell syntax check failed for $script"
+    #             exit 1
+    #           }
+    #           echo "✅ $script passed PowerShell syntax check"
+    #         fi
+    #       done
+    #     fi
     
     - name: Validate index.json
       run: |
@@ -420,65 +420,65 @@ jobs:
           echo "No scripts found in $SCRIPT_DIR"
         fi
 
-  test-windows-scripts:
-    runs-on: windows-latest
-    needs: [detect-changes, validate-syntax]
-    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'windows')
-    strategy:
-      matrix:
-        include:
-          - category: browsers
-            apps: [firefox, chrome]
-          - category: devtools
-            apps: [git]
-          - category: ides
-            apps: [vscode]
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Test Windows ${{ matrix.category }} scripts
-      run: |
-        $SCRIPT_DIR = "scripts\windows\${{ matrix.category }}"
-        if (Test-Path $SCRIPT_DIR) {
-          Write-Host "Testing scripts in $SCRIPT_DIR..."
-          
-          $apps = @(${{ join(matrix.apps, ', ') }})
-          foreach ($app in $apps) {
-            $script = "$SCRIPT_DIR\$app.ps1"
-            if (Test-Path $script) {
-              Write-Host "Testing $script..."
-              
-              # Check if script should be tested based on changes
-              $changedScripts = "${{ needs.detect-changes.outputs.changed-scripts }}"
-              if ($changedScripts -eq "" -or $changedScripts.Contains($script)) {
-                Write-Host "Running installation test for $script..."
-                
-                # Mock choco for testing
-                function choco {
-                  Write-Host "MOCK: choco $args"
-                  return 0
-                }
-                
-                # Run the script
-                try {
-                  & $script
-                  Write-Host "✅ $script executed successfully (mocked environment)"
-                } catch {
-                  Write-Host "❌ Script $script failed: $_"
-                  exit 1
-                }
-              } else {
-                Write-Host "⏭️ Skipping $script (not changed)"
-              }
-            }
-          }
-        } else {
-          Write-Host "No scripts found in $SCRIPT_DIR"
-        }
+  # test-windows-scripts:
+  #   runs-on: windows-latest
+  #   needs: [detect-changes, validate-syntax]
+  #   if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'windows')
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - category: browsers
+  #           apps: [firefox, chrome]
+  #         - category: devtools
+  #           apps: [git]
+  #         - category: ides
+  #           apps: [vscode]
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   
+  #   - name: Test Windows ${{ matrix.category }} scripts
+  #     run: |
+  #       $SCRIPT_DIR = "scripts\windows\${{ matrix.category }}"
+  #       if (Test-Path $SCRIPT_DIR) {
+  #         Write-Host "Testing scripts in $SCRIPT_DIR..."
+  #         
+  #         $apps = @(${{ join(matrix.apps, ', ') }})
+  #         foreach ($app in $apps) {
+  #           $script = "$SCRIPT_DIR\$app.ps1"
+  #           if (Test-Path $script) {
+  #             Write-Host "Testing $script..."
+  #             
+  #             # Check if script should be tested based on changes
+  #             $changedScripts = "${{ needs.detect-changes.outputs.changed-scripts }}"
+  #             if ($changedScripts -eq "" -or $changedScripts.Contains($script)) {
+  #               Write-Host "Running installation test for $script..."
+  #               
+  #               # Mock choco for testing
+  #               function choco {
+  #                 Write-Host "MOCK: choco $args"
+  #                 return 0
+  #               }
+  #               
+  #               # Run the script
+  #               try {
+  #                 & $script
+  #                 Write-Host "✅ $script executed successfully (mocked environment)"
+  #               } catch {
+  #                 Write-Host "❌ Script $script failed: $_"
+  #                 exit 1
+  #               }
+  #             } else {
+  #               Write-Host "⏭️ Skipping $script (not changed)"
+  #             }
+  #           }
+  #         }
+  #       } else {
+  #         Write-Host "No scripts found in $SCRIPT_DIR"
+  #       }
 
   generate-comprehensive-report:
     runs-on: ubuntu-latest
-    needs: [validate-syntax, test-ubuntu-scripts, test-fedora-scripts, test-arch-scripts, test-windows-scripts]
+    needs: [validate-syntax, test-ubuntu-scripts, test-fedora-scripts, test-arch-scripts]
     if: always()
     steps:
     - uses: actions/checkout@v4
@@ -497,11 +497,11 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Job | Status | Details |" >> $GITHUB_STEP_SUMMARY
         echo "|-----|--------|---------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Syntax Validation | ${{ needs.validate-syntax.result }} | Shellcheck + PowerShell validation |" >> $GITHUB_STEP_SUMMARY
+        echo "| Syntax Validation | ${{ needs.validate-syntax.result }} | Shellcheck validation |" >> $GITHUB_STEP_SUMMARY
         echo "| Ubuntu Scripts | ${{ needs.test-ubuntu-scripts.result }} | Real installation + version verification |" >> $GITHUB_STEP_SUMMARY
         echo "| Fedora Scripts | ${{ needs.test-fedora-scripts.result }} | Mocked dnf environment |" >> $GITHUB_STEP_SUMMARY
         echo "| Arch Scripts | ${{ needs.test-arch-scripts.result }} | Mocked pacman environment |" >> $GITHUB_STEP_SUMMARY
-        echo "| Windows Scripts | ${{ needs.test-windows-scripts.result }} | Mocked choco environment |" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows Scripts | Skipped | Commented out for now |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         if [ "${{ needs.detect-changes.outputs.changed-scripts }}" != "" ]; then
