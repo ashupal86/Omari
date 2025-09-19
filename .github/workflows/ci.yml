@@ -191,7 +191,7 @@ jobs:
               echo "Testing $script..."
               
               # Check if script should be tested based on changes
-              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+              if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
                 echo "Running dry-run test for $script..."
                 
                 # Create a test environment
@@ -262,7 +262,7 @@ jobs:
               echo "Testing $script..."
               
               # Check if script should be tested based on changes
-              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+              if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
                 echo "Running dry-run test for $script..."
                 
                 # Create a test environment
@@ -314,7 +314,7 @@ jobs:
               echo "Testing $script..."
               
               # Check if script should be tested based on changes
-              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+              if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
                 echo "Running dry-run test for $script..."
                 
                 # Create a test environment
