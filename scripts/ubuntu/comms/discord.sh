@@ -5,7 +5,6 @@
 set -euo pipefail
 
 APP_NAME="Discord"
-PACKAGE_NAME="discord"
 
 # Check if Discord is already installed
 if command -v discord >/dev/null 2>&1; then
