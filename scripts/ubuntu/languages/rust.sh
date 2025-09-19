@@ -23,7 +23,9 @@ sudo apt install -y curl build-essential
 curl --proto '=https' --tlsv1.2 -sSf "$RUSTUP_URL" | sh -s -- -y
 
 # Add Rust to PATH for current session
-source "$HOME/.cargo/env"
+if [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
+fi
 
 # Verify installation
 if command -v rustc >/dev/null 2>&1; then
