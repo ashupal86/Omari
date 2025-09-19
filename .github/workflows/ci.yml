@@ -52,31 +52,13 @@ jobs:
     - name: Detect changed scripts
       id: changes
       run: |
-        if [ "${{ steps.inputs.outputs.test-all }}" = "true" ] || [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          echo "scripts=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')" >> $GITHUB_OUTPUT
-          echo "json=scripts/index.json" >> $GITHUB_OUTPUT
-        else
-          # Get changed files
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          else
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
-          fi
-          
-          # Filter for script files
-          CHANGED_SCRIPTS=$(echo "$CHANGED_FILES" | grep -E '\.(sh|ps1)$' | tr '\n' ' ')
-          CHANGED_JSON=$(echo "$CHANGED_FILES" | grep 'index\.json$' || echo "")
-          
-          # If no scripts changed, test all scripts to ensure they work
-          if [ -z "$CHANGED_SCRIPTS" ]; then
-            echo "No scripts changed, testing all scripts..."
-            CHANGED_SCRIPTS=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')
-            CHANGED_JSON="scripts/index.json"
-          fi
-          
-          echo "scripts=$CHANGED_SCRIPTS" >> $GITHUB_OUTPUT
-          echo "json=$CHANGED_JSON" >> $GITHUB_OUTPUT
-        fi
+        # Always test all scripts to ensure they work
+        echo "Testing all scripts..."
+        CHANGED_SCRIPTS=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')
+        CHANGED_JSON="scripts/index.json"
+        
+        echo "scripts=$CHANGED_SCRIPTS" >> $GITHUB_OUTPUT
+        echo "json=$CHANGED_JSON" >> $GITHUB_OUTPUT
         
         echo "Changed scripts: $CHANGED_SCRIPTS"
         echo "Changed JSON: $CHANGED_JSON"
