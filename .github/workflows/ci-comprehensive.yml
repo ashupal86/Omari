@@ -121,22 +121,11 @@ jobs:
     - name: Validate Windows PowerShell scripts
       run: |
         if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
-          # Create a temporary PowerShell script for syntax checking
-          cat > /tmp/ps-syntax-check.ps1 << 'EOF'
-          param($ScriptPath)
-          try {
-            [System.Management.Automation.PSParser]::Tokenize((Get-Content $ScriptPath -Raw), [ref]$null) | Out-Null
-            Write-Output "Syntax OK"
-          } catch {
-            Write-Output "Syntax Error: $($_.Exception.Message)"
-            exit 1
-          }
-          EOF
-          
           echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
             if [ -f "$script" ]; then
               echo "Checking $script..."
-              pwsh -File /tmp/ps-syntax-check.ps1 -ScriptPath "$script" || {
+              # Use a simple syntax check approach
+              pwsh -Command "try { [System.Management.Automation.PSParser]::Tokenize((Get-Content '$script' -Raw), [ref]`$null) | Out-Null; 'Syntax OK' } catch { 'Syntax Error: ' + `$_.Exception.Message; exit 1 }" || {
                 echo "❌ PowerShell syntax check failed for $script"
                 exit 1
               }
