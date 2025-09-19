@@ -26,9 +26,15 @@ export function ThemeProvider({
   storageKey = 'omari-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  )
+  const [theme, setTheme] = useState<Theme>(defaultTheme)
+
+  // Initialize theme from localStorage after component mounts
+  useEffect(() => {
+    const storedTheme = localStorage.getItem(storageKey) as Theme
+    if (storedTheme) {
+      setTheme(storedTheme)
+    }
+  }, [storageKey])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -41,10 +47,23 @@ export function ThemeProvider({
         ? 'dark'
         : 'light'
 
+      console.log('Applying system theme:', systemTheme)
       root.classList.add(systemTheme)
-      return
+      
+      // Listen for system theme changes
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = () => {
+        const newSystemTheme = mediaQuery.matches ? 'dark' : 'light'
+        console.log('System theme changed to:', newSystemTheme)
+        root.classList.remove('light', 'dark')
+        root.classList.add(newSystemTheme)
+      }
+      
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
     }
 
+    console.log('Applying theme:', theme)
     root.classList.add(theme)
   }, [theme])
 
