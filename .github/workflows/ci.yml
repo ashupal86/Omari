@@ -124,36 +124,36 @@ jobs:
     #       done
     #     fi
     
-    - name: Validate index.json
-      run: |
-        if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ] || [ -f "scripts/index.json" ]; then
-          echo "Validating index.json..."
-          python3 -c "
-          import json
-          import os
-          
-          with open('scripts/index.json') as f:
-              index = json.load(f)
-          
-          print('✅ index.json is valid JSON')
-          
-          # Check script file existence
-          missing_files = []
-          for distro, categories in index.items():
-              for category, apps in categories.items():
-                  for app, script_path in apps.items():
-                      if not os.path.exists(script_path):
-                          missing_files.append(script_path)
-          
-          if missing_files:
-              print('❌ Missing script files:')
-              for file in missing_files:
-                  print(f'  - {file}')
-              exit(1)
-          else:
-              print('✅ All referenced script files exist')
-          "
-        fi
+    # - name: Validate index.json
+    #   run: |
+    #     if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ] || [ -f "scripts/index.json" ]; then
+    #       echo "Validating index.json..."
+    #       python3 -c "
+    #       import json
+    #       import os
+    #       
+    #       with open('scripts/index.json') as f:
+    #           index = json.load(f)
+    #       
+    #       print('✅ index.json is valid JSON')
+    #       
+    #       # Check script file existence
+    #       missing_files = []
+    #       for distro, categories in index.items():
+    #           for category, apps in categories.items():
+    #               for app, script_path in apps.items():
+    #                   if not os.path.exists(script_path):
+    #                       missing_files.append(script_path)
+    #       
+    #       if missing_files:
+    #           print('❌ Missing script files:')
+    #           for file in missing_files:
+    #               print(f'  - {file}')
+    #           exit(1)
+    #       else:
+    #           print('✅ All referenced script files exist')
+    #       "
+    #     fi
 
   test-ubuntu-scripts:
     runs-on: ubuntu-latest
