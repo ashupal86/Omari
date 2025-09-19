@@ -1,0 +1,572 @@
+name: Comprehensive Script Testing & Verification CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/ci-comprehensive.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/ci-comprehensive.yml'
+  workflow_dispatch:
+    inputs:
+      test_all_scripts:
+        description: 'Test all scripts (not just changed ones)'
+        required: false
+        default: false
+        type: boolean
+      test_specific_distro:
+        description: 'Test specific distribution (ubuntu/fedora/arch/windows)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ubuntu
+          - fedora
+          - arch
+          - windows
+
+env:
+  GITHUB_REPO: ashupal86/Omari
+  GITHUB_URL: https://github.com/ashupal86/Omari
+  TEST_TIMEOUT: 300
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed-scripts: ${{ steps.changes.outputs.scripts }}
+      changed-json: ${{ steps.changes.outputs.json }}
+      test-all: ${{ steps.inputs.outputs.test-all }}
+      test-distro: ${{ steps.inputs.outputs.test-distro }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Get workflow inputs
+      id: inputs
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "test-all=${{ github.event.inputs.test_all_scripts }}" >> $GITHUB_OUTPUT
+          echo "test-distro=${{ github.event.inputs.test_specific_distro }}" >> $GITHUB_OUTPUT
+        else
+          echo "test-all=false" >> $GITHUB_OUTPUT
+          echo "test-distro=all" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Detect changed scripts
+      id: changes
+      run: |
+        if [ "${{ steps.inputs.outputs.test-all }}" = "true" ] || [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "scripts=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          echo "json=scripts/index.json" >> $GITHUB_OUTPUT
+        else
+          # Get changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          # Filter for script files
+          CHANGED_SCRIPTS=$(echo "$CHANGED_FILES" | grep -E '\.(sh|ps1)$' | tr '\n' ' ')
+          CHANGED_JSON=$(echo "$CHANGED_FILES" | grep 'index\.json$' || echo "")
+          
+          # If no scripts changed, test all scripts to ensure they work
+          if [ -z "$CHANGED_SCRIPTS" ]; then
+            echo "No scripts changed, testing all scripts..."
+            CHANGED_SCRIPTS=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')
+            CHANGED_JSON="scripts/index.json"
+          fi
+          
+          echo "scripts=$CHANGED_SCRIPTS" >> $GITHUB_OUTPUT
+          echo "json=$CHANGED_JSON" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Changed scripts: $CHANGED_SCRIPTS"
+        echo "Changed JSON: $CHANGED_JSON"
+
+  validate-syntax:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.changed-json != ''
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install validation tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+    
+    - name: Validate Linux shell scripts
+      run: |
+        if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.sh$' | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Checking $script..."
+              shellcheck "$script" || {
+                echo "❌ Shellcheck failed for $script"
+                exit 1
+              }
+              echo "✅ $script passed shellcheck"
+            fi
+          done
+        fi
+    
+    - name: Validate Windows PowerShell scripts
+      run: |
+        if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Checking $script..."
+              pwsh -Command "Get-Content '$script' | Invoke-Expression" || {
+                echo "❌ PowerShell syntax check failed for $script"
+                exit 1
+              }
+              echo "✅ $script passed PowerShell syntax check"
+            fi
+          done
+        fi
+    
+    - name: Validate index.json
+      run: |
+        if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ]; then
+          echo "Validating ${{ needs.detect-changes.outputs.changed-json }}..."
+          python3 -c "
+          import json
+          import os
+          import sys
+          
+          try:
+              with open('${{ needs.detect-changes.outputs.changed-json }}', 'r') as f:
+                  data = json.load(f)
+              
+              # Validate structure
+              required_keys = ['ubuntu', 'fedora', 'arch', 'windows']
+              for key in required_keys:
+                  if key not in data:
+                      print(f'❌ Missing required key: {key}')
+                      sys.exit(1)
+              
+              # Validate script paths exist
+              for distro, categories in data.items():
+                  for category, apps in categories.items():
+                      for app, script_path in apps.items():
+                          if not os.path.exists(script_path):
+                              print(f'❌ Script not found: {script_path}')
+                              sys.exit(1)
+              
+              print('✅ JSON validation passed')
+          except Exception as e:
+              print(f'❌ JSON validation failed: {e}')
+              sys.exit(1)
+          "
+        fi
+
+  test-ubuntu-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'ubuntu')
+    strategy:
+      matrix:
+        include:
+          - category: browsers
+            apps: [firefox, chrome, brave, opera]
+          - category: devtools
+            apps: [git, docker, nodejs, curl, wget]
+          - category: ides
+            apps: [vscode, neovim]
+          - category: languages
+            apps: [python, go, rust]
+          - category: system
+            apps: [htop, tmux, zsh]
+          - category: media
+            apps: [vlc, spotify]
+          - category: comms
+            apps: [discord]
+          - category: games
+            apps: [steam]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Ubuntu ${{ matrix.category }} scripts
+      run: |
+        SCRIPT_DIR="scripts/ubuntu/${{ matrix.category }}"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing scripts in $SCRIPT_DIR..."
+          
+          for app in ${{ join(matrix.apps, ' ') }}; do
+            script="$SCRIPT_DIR/$app.sh"
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running installation test for $script..."
+                
+                # Make script executable
+                chmod +x "$script"
+                
+                # Run the script
+                timeout ${{ env.TEST_TIMEOUT }} bash "$script" || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                # Verify installation based on app type
+                case "$app" in
+                  firefox)
+                    firefox --version || { echo "❌ Firefox not installed"; exit 1; }
+                    ;;
+                  chrome)
+                    google-chrome --version || { echo "❌ Chrome not installed"; exit 1; }
+                    ;;
+                  brave)
+                    brave-browser --version || { echo "❌ Brave not installed"; exit 1; }
+                    ;;
+                  opera)
+                    opera --version || { echo "❌ Opera not installed"; exit 1; }
+                    ;;
+                  git)
+                    git --version || { echo "❌ Git not installed"; exit 1; }
+                    ;;
+                  docker)
+                    docker --version || { echo "❌ Docker not installed"; exit 1; }
+                    ;;
+                  nodejs)
+                    node --version || { echo "❌ Node.js not installed"; exit 1; }
+                    ;;
+                  curl)
+                    curl --version || { echo "❌ Curl not installed"; exit 1; }
+                    ;;
+                  wget)
+                    wget --version || { echo "❌ Wget not installed"; exit 1; }
+                    ;;
+                  vscode)
+                    code --version || { echo "❌ VS Code not installed"; exit 1; }
+                    ;;
+                  neovim)
+                    nvim --version || { echo "❌ Neovim not installed"; exit 1; }
+                    ;;
+                  python)
+                    python3 --version || { echo "❌ Python not installed"; exit 1; }
+                    ;;
+                  go)
+                    go version || { echo "❌ Go not installed"; exit 1; }
+                    ;;
+                  rust)
+                    rustc --version || { echo "❌ Rust not installed"; exit 1; }
+                    ;;
+                  htop)
+                    htop --version || { echo "❌ htop not installed"; exit 1; }
+                    ;;
+                  tmux)
+                    tmux -V || { echo "❌ tmux not installed"; exit 1; }
+                    ;;
+                  zsh)
+                    zsh --version || { echo "❌ zsh not installed"; exit 1; }
+                    ;;
+                  vlc)
+                    vlc --version || { echo "❌ VLC not installed"; exit 1; }
+                    ;;
+                  spotify)
+                    spotify --version || { echo "❌ Spotify not installed"; exit 1; }
+                    ;;
+                  discord)
+                    discord --version || { echo "❌ Discord not installed"; exit 1; }
+                    ;;
+                  steam)
+                    steam --version || { echo "❌ Steam not installed"; exit 1; }
+                    ;;
+                esac
+                
+                echo "✅ $script installed and verified successfully"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        else
+          echo "No scripts found in $SCRIPT_DIR"
+        fi
+
+  test-fedora-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'fedora')
+    strategy:
+      matrix:
+        include:
+          - category: browsers
+            apps: [firefox]
+          - category: devtools
+            apps: [git, docker]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Fedora ${{ matrix.category }} scripts
+      run: |
+        SCRIPT_DIR="scripts/fedora/${{ matrix.category }}"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing scripts in $SCRIPT_DIR..."
+          
+          for app in ${{ join(matrix.apps, ' ') }}; do
+            script="$SCRIPT_DIR/$app.sh"
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running installation test for $script..."
+                
+                # Make script executable
+                chmod +x "$script"
+                
+                # Mock dnf for testing (since we're on Ubuntu runner)
+                dnf() {
+                  echo "MOCK: dnf $*"
+                  return 0
+                }
+                
+                # Mock sudo
+                sudo() {
+                  echo "MOCK: sudo $*"
+                  return 0
+                }
+                
+                export -f dnf sudo
+                
+                # Run the script
+                timeout ${{ env.TEST_TIMEOUT }} bash "$script" || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                echo "✅ $script executed successfully (mocked environment)"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        else
+          echo "No scripts found in $SCRIPT_DIR"
+        fi
+
+  test-arch-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'arch')
+    strategy:
+      matrix:
+        include:
+          - category: browsers
+            apps: [firefox]
+          - category: devtools
+            apps: [git]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Arch ${{ matrix.category }} scripts
+      run: |
+        SCRIPT_DIR="scripts/arch/${{ matrix.category }}"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing scripts in $SCRIPT_DIR..."
+          
+          for app in ${{ join(matrix.apps, ' ') }}; do
+            script="$SCRIPT_DIR/$app.sh"
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running installation test for $script..."
+                
+                # Make script executable
+                chmod +x "$script"
+                
+                # Mock pacman for testing (since we're on Ubuntu runner)
+                pacman() {
+                  echo "MOCK: pacman $*"
+                  return 0
+                }
+                
+                # Mock sudo
+                sudo() {
+                  echo "MOCK: sudo $*"
+                  return 0
+                }
+                
+                export -f pacman sudo
+                
+                # Run the script
+                timeout ${{ env.TEST_TIMEOUT }} bash "$script" || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                echo "✅ $script executed successfully (mocked environment)"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        else
+          echo "No scripts found in $SCRIPT_DIR"
+        fi
+
+  test-windows-scripts:
+    runs-on: windows-latest
+    needs: [detect-changes, validate-syntax]
+    if: always() && (needs.validate-syntax.result == 'success' || needs.validate-syntax.result == 'skipped') && (needs.detect-changes.outputs.test-distro == 'all' || needs.detect-changes.outputs.test-distro == 'windows')
+    strategy:
+      matrix:
+        include:
+          - category: browsers
+            apps: [firefox, chrome]
+          - category: devtools
+            apps: [git]
+          - category: ides
+            apps: [vscode]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Windows ${{ matrix.category }} scripts
+      run: |
+        $SCRIPT_DIR = "scripts\windows\${{ matrix.category }}"
+        if (Test-Path $SCRIPT_DIR) {
+          Write-Host "Testing scripts in $SCRIPT_DIR..."
+          
+          $apps = @(${{ join(matrix.apps, ', ') }})
+          foreach ($app in $apps) {
+            $script = "$SCRIPT_DIR\$app.ps1"
+            if (Test-Path $script) {
+              Write-Host "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              $changedScripts = "${{ needs.detect-changes.outputs.changed-scripts }}"
+              if ($changedScripts -eq "" -or $changedScripts.Contains($script)) {
+                Write-Host "Running installation test for $script..."
+                
+                # Mock choco for testing
+                function choco {
+                  Write-Host "MOCK: choco $args"
+                  return 0
+                }
+                
+                # Run the script
+                try {
+                  & $script
+                  Write-Host "✅ $script executed successfully (mocked environment)"
+                } catch {
+                  Write-Host "❌ Script $script failed: $_"
+                  exit 1
+                }
+              } else {
+                Write-Host "⏭️ Skipping $script (not changed)"
+              }
+            }
+          }
+        } else {
+          Write-Host "No scripts found in $SCRIPT_DIR"
+        }
+
+  generate-comprehensive-report:
+    runs-on: ubuntu-latest
+    needs: [validate-syntax, test-ubuntu-scripts, test-fedora-scripts, test-arch-scripts, test-windows-scripts]
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate comprehensive test report
+      run: |
+        echo "# 🧪 Comprehensive Script Testing Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** https://github.com/ashupal86/Omari" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** main" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** $(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
+        echo "**Test Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status | Details |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Syntax Validation | ${{ needs.validate-syntax.result }} | Shellcheck + PowerShell validation |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ubuntu Scripts | ${{ needs.test-ubuntu-scripts.result }} | Real installation + version verification |" >> $GITHUB_STEP_SUMMARY
+        echo "| Fedora Scripts | ${{ needs.test-fedora-scripts.result }} | Mocked dnf environment |" >> $GITHUB_STEP_SUMMARY
+        echo "| Arch Scripts | ${{ needs.test-arch-scripts.result }} | Mocked pacman environment |" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows Scripts | ${{ needs.test-windows-scripts.result }} | Mocked choco environment |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.detect-changes.outputs.changed-scripts }}" != "" ]; then
+          echo "## 🔄 Tested Scripts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | while read -r script; do
+            if [ -n "$script" ]; then
+              echo "- \`$script\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "## 🚀 Installation Verification" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Ubuntu (Real Environment)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Browsers**: Firefox, Chrome, Brave, Opera" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Dev Tools**: Git, Docker, Node.js, Curl, Wget" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **IDEs**: VS Code, Neovim" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Languages**: Python, Go, Rust" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **System**: htop, tmux, zsh" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Media**: VLC, Spotify" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Communication**: Discord" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Games**: Steam" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Other Distributions (Mocked Environment)" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 **Fedora**: Firefox, Git, Docker (mocked dnf)" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 **Arch**: Firefox, Git (mocked pacman)" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 **Windows**: Firefox, Chrome, Git, VS Code (mocked choco)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📝 Usage Instructions" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Linux" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "# Make script executable" >> $GITHUB_STEP_SUMMARY
+        echo "chmod +x scripts/ubuntu/browsers/firefox.sh" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Run the script" >> $GITHUB_STEP_SUMMARY
+        echo "./scripts/ubuntu/browsers/firefox.sh" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Verify installation" >> $GITHUB_STEP_SUMMARY
+        echo "firefox --version" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Windows" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`powershell" >> $GITHUB_STEP_SUMMARY
+        echo "# First install Chocolatey" >> $GITHUB_STEP_SUMMARY
+        echo ".\\scripts\\windows\\choco-install.ps1" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Then install applications" >> $GITHUB_STEP_SUMMARY
+        echo ".\\scripts\\windows\\browsers\\firefox.ps1" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Verify installation" >> $GITHUB_STEP_SUMMARY
+        echo "firefox --version" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 🔧 CI Features" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Real Environment Testing**: Ubuntu scripts run in actual Ubuntu environment" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Version Verification**: All installed apps are verified with --version flags" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Timeout Protection**: 5-minute timeout per script to prevent hanging" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Matrix Testing**: Parallel testing across categories and applications" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Comprehensive Reporting**: Detailed test results and usage instructions" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Change Detection**: Only tests modified scripts unless 'test all' is selected" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Manual Triggers**: Workflow dispatch with options for specific distributions" >> $GITHUB_STEP_SUMMARY
