@@ -123,15 +123,15 @@ jobs:
         if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
           # Create a temporary PowerShell script for syntax checking
           cat > /tmp/ps-syntax-check.ps1 << 'EOF'
-param($ScriptPath)
-try {
-  [System.Management.Automation.PSParser]::Tokenize((Get-Content $ScriptPath -Raw), [ref]$null) | Out-Null
-  Write-Output "Syntax OK"
-} catch {
-  Write-Output "Syntax Error: $($_.Exception.Message)"
-  exit 1
-}
-EOF
+          param($ScriptPath)
+          try {
+            [System.Management.Automation.PSParser]::Tokenize((Get-Content $ScriptPath -Raw), [ref]$null) | Out-Null
+            Write-Output "Syntax OK"
+          } catch {
+            Write-Output "Syntax Error: $($_.Exception.Message)"
+            exit 1
+          }
+          EOF
           
           echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
             if [ -f "$script" ]; then
