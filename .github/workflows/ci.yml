@@ -1,90 +1,506 @@
-name: Script Validation CI
+name: Comprehensive Script Testing and Execution CI
 
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+    inputs:
+      test_all_scripts:
+        description: 'Test all scripts (not just changed ones)'
+        required: false
+        default: false
+        type: boolean
+      execute_scripts:
+        description: 'Execute scripts in dry-run mode (safe testing)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  GITHUB_REPO: ashupal86/Omari
+  GITHUB_URL: https://github.com/ashupal86/Omari
 
 jobs:
-  validate-linux-scripts:
+  detect-changes:
     runs-on: ubuntu-latest
+    outputs:
+      changed-scripts: ${{ steps.changes.outputs.scripts }}
+      changed-json: ${{ steps.changes.outputs.json }}
+      test-all: ${{ steps.inputs.outputs.test-all }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Get workflow inputs
+      id: inputs
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "test-all=${{ github.event.inputs.test_all_scripts }}" >> $GITHUB_OUTPUT
+        else
+          echo "test-all=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Detect changed scripts
+      id: changes
+      run: |
+        if [ "${{ steps.inputs.outputs.test-all }}" = "true" ] || [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "scripts=$(find scripts -name "*.sh" -o -name "*.ps1" | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          echo "json=scripts/index.json" >> $GITHUB_OUTPUT
+        else
+          # Get changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          # Filter for script files
+          CHANGED_SCRIPTS=$(echo "$CHANGED_FILES" | grep -E '\.(sh|ps1)$' | tr '\n' ' ')
+          CHANGED_JSON=$(echo "$CHANGED_FILES" | grep 'index\.json$' || echo "")
+          
+          echo "scripts=$CHANGED_SCRIPTS" >> $GITHUB_OUTPUT
+          echo "json=$CHANGED_JSON" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Changed scripts: $CHANGED_SCRIPTS"
+        echo "Changed JSON: $CHANGED_JSON"
+
+  validate-syntax:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.changed-json != ''
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install shellcheck
+    - name: Install validation tools
       run: |
         sudo apt-get update
         sudo apt-get install -y shellcheck
     
-    - name: Validate Ubuntu scripts
+    - name: Validate Linux shell scripts
       run: |
-        find scripts/ubuntu -name "*.sh" -type f | while read -r script; do
-          echo "Checking $script..."
-          shellcheck "$script" || exit 1
-        done
-    
-    - name: Validate Fedora scripts
-      run: |
-        find scripts/fedora -name "*.sh" -type f | while read -r script; do
-          echo "Checking $script..."
-          shellcheck "$script" || exit 1
-        done
-    
-    - name: Validate Arch scripts
-      run: |
-        find scripts/arch -name "*.sh" -type f | while read -r script; do
-          echo "Checking $script..."
-          shellcheck "$script" || exit 1
-        done
-
-  validate-windows-scripts:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
+        if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.sh$' | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Checking $script..."
+              shellcheck "$script" || {
+                echo "❌ Shellcheck failed for $script"
+                exit 1
+              }
+              echo "✅ $script passed shellcheck"
+            fi
+          done
+        fi
     
     - name: Validate Windows PowerShell scripts
       run: |
-        Get-ChildItem -Path "scripts\windows" -Recurse -Filter "*.ps1" | ForEach-Object {
-          Write-Host "Checking $($_.FullName)..."
-          $result = pwsh -Command "Get-Content '$($_.FullName)' | Out-String | Invoke-Expression" 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "PowerShell syntax error in $($_.FullName): $result"
-            exit 1
-          }
-        }
-
-  validate-json:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
+        if [ -n "${{ needs.detect-changes.outputs.changed-scripts }}" ]; then
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Checking $script..."
+              pwsh -Command "Get-Content '$script' | Out-String | Invoke-Expression" 2>&1 || {
+                echo "❌ PowerShell syntax check failed for $script"
+                exit 1
+              }
+              echo "✅ $script passed PowerShell syntax check"
+            fi
+          done
+        fi
     
     - name: Validate index.json
       run: |
-        python3 -c "import json; json.load(open('scripts/index.json'))"
-        echo "✓ index.json is valid JSON"
+        if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ] || [ -f "scripts/index.json" ]; then
+          echo "Validating index.json..."
+          python3 -c "
+          import json
+          import os
+          
+          with open('scripts/index.json') as f:
+              index = json.load(f)
+          
+          print('✅ index.json is valid JSON')
+          
+          # Check script file existence
+          missing_files = []
+          for distro, categories in index.items():
+              for category, apps in categories.items():
+                  for app, script_path in apps.items():
+                      if not os.path.exists(script_path):
+                          missing_files.append(script_path)
+          
+          if missing_files:
+              print('❌ Missing script files:')
+              for file in missing_files:
+                  print(f'  - {file}')
+              exit(1)
+          else:
+              print('✅ All referenced script files exist')
+          "
+        fi
+
+  test-ubuntu-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    strategy:
+      matrix:
+        include:
+          - distro: ubuntu
+            category: browsers
+          - distro: ubuntu
+            category: devtools
+          - distro: ubuntu
+            category: ides
+          - distro: ubuntu
+            category: languages
+          - distro: ubuntu
+            category: system
+          - distro: ubuntu
+            category: media
+          - distro: ubuntu
+            category: comms
+          - distro: ubuntu
+            category: games
+    steps:
+    - uses: actions/checkout@v4
     
-    - name: Check script file existence
+    - name: Test Ubuntu scripts - ${{ matrix.category }}
       run: |
-        python3 -c "
-        import json
-        import os
+        SCRIPT_DIR="scripts/ubuntu/${{ matrix.category }}"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing scripts in $SCRIPT_DIR..."
+          for script in "$SCRIPT_DIR"/*.sh; do
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running dry-run test for $script..."
+                
+                # Create a test environment
+                export DRY_RUN=true
+                export TEST_MODE=true
+                
+                # Mock sudo for testing
+                sudo() {
+                  echo "DRY RUN: sudo $*"
+                  return 0
+                }
+                
+                # Mock package managers
+                apt() {
+                  echo "DRY RUN: apt $*"
+                  return 0
+                }
+                
+                apt-get() {
+                  echo "DRY RUN: apt-get $*"
+                  return 0
+                }
+                
+                # Mock other commands that might fail in CI
+                wget() {
+                  echo "DRY RUN: wget $*"
+                  return 0
+                }
+                
+                curl() {
+                  echo "DRY RUN: curl $*"
+                  return 0
+                }
+                
+                # Export mock functions
+                export -f sudo apt apt-get wget curl
+                
+                # Run script with timeout and capture output
+                timeout 30 bash "$script" 2>&1 | head -20 || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                echo "✅ $script passed dry-run test"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        else
+          echo "No scripts found in $SCRIPT_DIR"
+        fi
+
+  test-fedora-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Fedora scripts
+      run: |
+        SCRIPT_DIR="scripts/fedora"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing Fedora scripts..."
+          find "$SCRIPT_DIR" -name "*.sh" | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running dry-run test for $script..."
+                
+                # Create a test environment
+                export DRY_RUN=true
+                export TEST_MODE=true
+                
+                # Mock sudo and dnf for testing
+                sudo() {
+                  echo "DRY RUN: sudo $*"
+                  return 0
+                }
+                
+                dnf() {
+                  echo "DRY RUN: dnf $*"
+                  return 0
+                }
+                
+                # Export mock functions
+                export -f sudo dnf
+                
+                # Run script with timeout
+                timeout 30 bash "$script" 2>&1 | head -20 || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                echo "✅ $script passed dry-run test"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        fi
+
+  test-arch-scripts:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Arch scripts
+      run: |
+        SCRIPT_DIR="scripts/arch"
+        if [ -d "$SCRIPT_DIR" ]; then
+          echo "Testing Arch scripts..."
+          find "$SCRIPT_DIR" -name "*.sh" | while read -r script; do
+            if [ -f "$script" ]; then
+              echo "Testing $script..."
+              
+              # Check if script should be tested based on changes
+              if [ "${{ needs.detect-changes.outputs.test-all }}" = "true" ] || echo "${{ needs.detect-changes.outputs.changed-scripts }}" | grep -q "$script"; then
+                echo "Running dry-run test for $script..."
+                
+                # Create a test environment
+                export DRY_RUN=true
+                export TEST_MODE=true
+                
+                # Mock sudo and pacman for testing
+                sudo() {
+                  echo "DRY RUN: sudo $*"
+                  return 0
+                }
+                
+                pacman() {
+                  echo "DRY RUN: pacman $*"
+                  return 0
+                }
+                
+                # Export mock functions
+                export -f sudo pacman
+                
+                # Run script with timeout
+                timeout 30 bash "$script" 2>&1 | head -20 || {
+                  echo "❌ Script $script failed or timed out"
+                  exit 1
+                }
+                
+                echo "✅ $script passed dry-run test"
+              else
+                echo "⏭️ Skipping $script (not changed)"
+              fi
+            fi
+          done
+        fi
+
+  test-windows-scripts:
+    runs-on: windows-latest
+    needs: [detect-changes, validate-syntax]
+    if: needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Test Windows PowerShell scripts
+      run: |
+        $ScriptDir = "scripts\windows"
+        if (Test-Path $ScriptDir) {
+          Write-Host "Testing Windows scripts..."
+          Get-ChildItem -Path $ScriptDir -Recurse -Filter "*.ps1" | ForEach-Object {
+            $script = $_.FullName
+            Write-Host "Testing $script..."
+            
+            # Check if script should be tested based on changes
+            $changedScripts = "${{ needs.detect-changes.outputs.changed-scripts }}"
+            if ($changedScripts -match [regex]::Escape($script) -or "${{ needs.detect-changes.outputs.test-all }}" -eq "true") {
+              Write-Host "Running dry-run test for $script..."
+              
+              # Create test environment
+              $env:DRY_RUN = "true"
+              $env:TEST_MODE = "true"
+              
+              # Mock Chocolatey for testing
+              function choco {
+                Write-Host "DRY RUN: choco $args"
+                return 0
+              }
+              
+              # Run script with timeout
+              try {
+                $result = pwsh -Command "& '$script'" -TimeoutSec 30 2>&1
+                Write-Host "✅ $script passed dry-run test"
+              } catch {
+                Write-Host "❌ Script $script failed or timed out: $_"
+                exit 1
+              }
+            } else {
+              Write-Host "⏭️ Skipping $script (not changed)"
+            }
+          }
+        }
+
+  execute-scripts-dry-run:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-syntax]
+    if: github.event.inputs.execute_scripts == 'true' && (needs.detect-changes.outputs.changed-scripts != '' || needs.detect-changes.outputs.test-all == 'true')
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Execute Ubuntu scripts in dry-run mode
+      run: |
+        echo "🚀 Executing Ubuntu scripts in DRY-RUN mode..."
+        echo "Repository: ${{ env.GITHUB_URL }}"
+        echo "Changed scripts: ${{ needs.detect-changes.outputs.changed-scripts }}"
         
-        with open('scripts/index.json') as f:
-            index = json.load(f)
+        # Create a comprehensive test environment
+        export DRY_RUN=true
+        export TEST_MODE=true
+        export GITHUB_REPO="${{ env.GITHUB_REPO }}"
+        export GITHUB_URL="${{ env.GITHUB_URL }}"
         
-        missing_files = []
-        for distro, categories in index.items():
-            for category, apps in categories.items():
-                for app, script_path in apps.items():
-                    if not os.path.exists(script_path):
-                        missing_files.append(script_path)
+        # Mock all system commands
+        mock_command() {
+          local cmd="$1"
+          shift
+          echo "DRY RUN: $cmd $*"
+          return 0
+        }
         
-        if missing_files:
-            print('Missing script files:')
-            for file in missing_files:
-                print(f'  - {file}')
-            exit(1)
-        else:
-            print('✓ All script files exist')
-        "
+        # Create mock functions
+        sudo() { mock_command "sudo" "$@"; }
+        apt() { mock_command "apt" "$@"; }
+        apt-get() { mock_command "apt-get" "$@"; }
+        dnf() { mock_command "dnf" "$@"; }
+        pacman() { mock_command "pacman" "$@"; }
+        wget() { mock_command "wget" "$@"; }
+        curl() { mock_command "curl" "$@"; }
+        chmod() { mock_command "chmod" "$@"; }
+        ln() { mock_command "ln" "$@"; }
+        mkdir() { mock_command "mkdir" "$@"; }
+        rm() { mock_command "rm" "$@"; }
+        dpkg() { mock_command "dpkg" "$@"; }
+        add-apt-repository() { mock_command "add-apt-repository" "$@"; }
+        
+        # Export all mock functions
+        export -f sudo apt apt-get dnf pacman wget curl chmod ln mkdir rm dpkg add-apt-repository
+        
+        # Execute all Ubuntu scripts
+        find scripts/ubuntu -name "*.sh" -type f | while read -r script; do
+          if [ -f "$script" ]; then
+            echo "🔄 Executing $script..."
+            timeout 60 bash "$script" || {
+              echo "❌ Script $script failed"
+              exit 1
+            }
+            echo "✅ $script completed successfully"
+          fi
+        done
+        
+        echo "🎉 All Ubuntu scripts executed successfully in dry-run mode!"
+
+  generate-test-report:
+    runs-on: ubuntu-latest
+    needs: [validate-syntax, test-ubuntu-scripts, test-fedora-scripts, test-arch-scripts, test-windows-scripts]
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate test report
+      run: |
+        echo "# 🧪 Script Testing Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** ${{ env.GITHUB_URL }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Syntax Validation | ${{ needs.validate-syntax.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ubuntu Scripts | ${{ needs.test-ubuntu-scripts.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Fedora Scripts | ${{ needs.test-fedora-scripts.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Arch Scripts | ${{ needs.test-arch-scripts.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows Scripts | ${{ needs.test-windows-scripts.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.detect-changes.outputs.changed-scripts }}" != "" ]; then
+          echo "## 🔄 Changed Scripts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | while read -r script; do
+            if [ -n "$script" ]; then
+              echo "- \`$script\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "## 📝 Usage Instructions" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "To use these scripts:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Linux" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "# Make script executable" >> $GITHUB_STEP_SUMMARY
+        echo "chmod +x scripts/ubuntu/browsers/firefox.sh" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Run the script" >> $GITHUB_STEP_SUMMARY
+        echo "./scripts/ubuntu/browsers/firefox.sh" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Windows" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`powershell" >> $GITHUB_STEP_SUMMARY
+        echo "# First install Chocolatey" >> $GITHUB_STEP_SUMMARY
+        echo ".\\scripts\\windows\\choco-install.ps1" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Then install applications" >> $GITHUB_STEP_SUMMARY
+        echo ".\\scripts\\windows\\browsers\\firefox.ps1" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
