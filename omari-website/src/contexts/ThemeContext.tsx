@@ -11,11 +11,13 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme
   setTheme: (theme: Theme) => void
+  mounted: boolean
 }
 
 const initialState: ThemeProviderState = {
   theme: 'system',
   setTheme: () => null,
+  mounted: false,
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
@@ -27,12 +29,19 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
+  const [mounted, setMounted] = useState(false)
 
   // Initialize theme from localStorage after component mounts
   useEffect(() => {
-    const storedTheme = localStorage.getItem(storageKey) as Theme
-    if (storedTheme) {
-      setTheme(storedTheme)
+    setMounted(true)
+    try {
+      const storedTheme = localStorage.getItem(storageKey) as Theme
+      if (storedTheme && ['light', 'dark', 'system'].includes(storedTheme)) {
+        console.log('Loading stored theme:', storedTheme)
+        setTheme(storedTheme)
+      }
+    } catch (error) {
+      console.error('Error loading theme from localStorage:', error)
     }
   }, [storageKey])
 
@@ -70,9 +79,16 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
+      try {
+        localStorage.setItem(storageKey, theme)
+        setTheme(theme)
+        console.log('Theme saved to localStorage:', theme)
+      } catch (error) {
+        console.error('Error saving theme to localStorage:', error)
+        setTheme(theme) // Still update the state even if localStorage fails
+      }
     },
+    mounted,
   }
 
   return (
