@@ -114,8 +114,8 @@ jobs:
           echo "${{ needs.detect-changes.outputs.changed-scripts }}" | tr ' ' '\n' | grep '\.ps1$' | while read -r script; do
             if [ -f "$script" ]; then
               echo "Checking $script..."
-              # Use a simple syntax check approach
-              pwsh -Command "try { [System.Management.Automation.PSParser]::Tokenize((Get-Content '$script' -Raw), [ref]`$null) | Out-Null; 'Syntax OK' } catch { 'Syntax Error: ' + `$_.Exception.Message; exit 1 }" || {
+              # Use a simple syntax check approach with proper escaping
+              pwsh -Command "try { [System.Management.Automation.PSParser]::Tokenize((Get-Content \"$script\" -Raw), [ref]`$null) | Out-Null; Write-Output 'Syntax OK' } catch { Write-Output ('Syntax Error: ' + `$_.Exception.Message); exit 1 }" || {
                 echo "❌ PowerShell syntax check failed for $script"
                 exit 1
               }
