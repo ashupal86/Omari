@@ -128,7 +128,7 @@ jobs:
       run: |
         if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ] || [ -f "scripts/index.json" ]; then
           echo "Validating index.json..."
-          python3 -c "
+          python3 << 'EOF'
 import json
 import os
 
@@ -152,7 +152,7 @@ if missing_files:
     exit(1)
 else:
     print('✅ All referenced script files exist')
-"
+EOF
         fi
 
   test-ubuntu-scripts:

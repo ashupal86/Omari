@@ -138,7 +138,7 @@ jobs:
       run: |
         if [ -n "${{ needs.detect-changes.outputs.changed-json }}" ] || [ -f "scripts/index.json" ]; then
           echo "Validating index.json..."
-          python3 -c "
+          python3 << 'EOF'
 import json
 import os
 import sys
@@ -166,7 +166,7 @@ try:
 except Exception as e:
     print(f'❌ JSON validation failed: {e}')
     sys.exit(1)
-"
+EOF
         fi
 
   test-ubuntu-scripts:
