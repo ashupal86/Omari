@@ -24,6 +24,7 @@ curl --proto '=https' --tlsv1.2 -sSf "$RUSTUP_URL" | sh -s -- -y
 
 # Add Rust to PATH for current session
 if [ -f "$HOME/.cargo/env" ]; then
+    # shellcheck source=/dev/null
     source "$HOME/.cargo/env"
 fi
 
