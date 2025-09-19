@@ -24,7 +24,7 @@ sudo apt install -y "$PACKAGE_NAME"
 # Verify installation
 if command -v zsh >/dev/null 2>&1; then
     echo "✓ $APP_NAME installed successfully ($(zsh --version))"
-    echo "Note: To set zsh as default shell, run: chsh -s $(which zsh)"
+    echo "Note: To set zsh as default shell, run: chsh -s $(command -v zsh)"
 else
     echo "✗ Failed to install $APP_NAME"
     exit 1

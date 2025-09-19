@@ -24,9 +24,9 @@ sudo tar -C "$INSTALL_DIR" -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
 # Add Go to PATH in profile
 if ! grep -q 'export PATH=\$PATH:/usr/local/go/bin' ~/.profile; then
     {
-        echo 'export PATH=$PATH:/usr/local/go/bin'
-        echo 'export GOPATH=$HOME/go'
-        echo 'export PATH=$PATH:$GOPATH/bin'
+        echo "export PATH=\$PATH:/usr/local/go/bin"
+        echo "export GOPATH=\$HOME/go"
+        echo "export PATH=\$PATH:\$GOPATH/bin"
     } >> ~/.profile
 fi
 
