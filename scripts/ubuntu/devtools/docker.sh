@@ -31,7 +31,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docke
 sudo apt update
 
 # Install Docker
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo apt install -y "$PACKAGE_NAME" docker-ce-cli containerd.io docker-compose-plugin
 
 # Add current user to docker group
 sudo usermod -aG docker "$USER"
